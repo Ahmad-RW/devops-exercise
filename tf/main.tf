@@ -156,9 +156,9 @@ resource "aws_subnet" "private-1a" {
 #     tags = merge(var.tags)      
 # }
 
-#Database Subnets
+#isolated Subnets
 
-resource "aws_subnet" "database-1a" {
+resource "aws_subnet" "isolated-1a" {
     vpc_id = aws_vpc.main.id
     cidr_block = "10.0.48.0/20"
     availability_zone_id = element(var.azs, 0)
@@ -166,7 +166,7 @@ resource "aws_subnet" "database-1a" {
     
 }
 
-# resource "aws_subnet" "database-1b" {
+# resource "aws_subnet" "isolated-1b" {
 #     vpc_id = aws_vpc.main.id
 #     cidr_block = "10.0.96.0/20"
 #     availability_zone_id = element(var.azs, 1)
@@ -174,7 +174,7 @@ resource "aws_subnet" "database-1a" {
 
 # }
 
-# resource "aws_subnet" "database-1c" {
+# resource "aws_subnet" "isolated-1c" {
 #     vpc_id = aws_vpc.main.id
 #     cidr_block = "10.0.144.0/20"
 #     availability_zone_id = element(var.azs, 2)
@@ -205,14 +205,12 @@ resource "aws_route" "private-rtb-outbound" {
 }
 
 
-resource "aws_route_table" "database-rtb" {
+resource "aws_route_table" "isolated-rtb" {
     vpc_id = aws_vpc.main.id
 }
 
-resource "aws_route" "database-rtb-outbound" {
-    route_table_id = aws_route_table.database-rtb.id
-    destination_cidr_block = "0.0.0.0/0" 
-    nat_gateway_id = aws_nat_gateway.nat-gw.id
+resource "aws_route" "isolated-rtb-outbound" {
+    route_table_id = aws_route_table.isolated-rtb.id
 }
 
 
@@ -227,23 +225,23 @@ resource "aws_route_table_association" "private-rtb-subnet-association-1a" {
 # }
 
 # resource "aws_route_table_association" "private-rtb-subnet-association-1c" {
-#     subnet_id = aws_subnet.database-1c.id
-#     route_table_id = aws_route_table.database-rtb.id
+#     subnet_id = aws_subnet.isolated-1c.id
+#     route_table_id = aws_route_table.isolated-rtb.id
 # }
 
-resource "aws_route_table_association" "database-rtb-subnet-association-1a" {
-    subnet_id = aws_subnet.database-1a.id
-    route_table_id = aws_route_table.database-rtb.id
+resource "aws_route_table_association" "isolated-rtb-subnet-association-1a" {
+    subnet_id = aws_subnet.isolated-1a.id
+    route_table_id = aws_route_table.isolated-rtb.id
 }
 
-# resource "aws_route_table_association" "database-rtb-subnet-association-1b" {
-#     subnet_id = aws_subnet.database-1b.id
-#     route_table_id = aws_route_table.database-rtb.id
+# resource "aws_route_table_association" "isolated-rtb-subnet-association-1b" {
+#     subnet_id = aws_subnet.isolated-1b.id
+#     route_table_id = aws_route_table.isolated-rtb.id
 # }
 
-# resource "aws_route_table_association" "database-rtb-subnet-association-1c" {
-#     subnet_id = aws_subnet.database-1c.id
-#     route_table_id = aws_route_table.database-rtb.id
+# resource "aws_route_table_association" "isolated-rtb-subnet-association-1c" {
+#     subnet_id = aws_subnet.isolated-1c.id
+#     route_table_id = aws_route_table.isolated-rtb.id
 # }
 
 resource "aws_route_table" "dmz-rtb" {
@@ -272,6 +270,40 @@ resource "aws_route_table_association" "dmz-rtb-subnet-association-1a" {
 # }
 
 ## Setup Internal LB
+
+
+resource "aws_security_group" "lb-sg" {
+  vpc_id = aws_vpc.main.id
+
+}
+
+resource "aws_vpc_security_group_egress_rule" "lb-sg-allow-all" {
+
+  security_group_id = aws_security_group.lb-sg.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1" # semantically equivalent to all ports
+}
+
+resource "aws_vpc_security_group_ingress_rule" "lb-sg-allow-80" {
+
+  security_group_id = aws_security_group.lb-sg.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port = "443"
+  to_port = "443"
+}
+
+
+
+resource "aws_vpc_security_group_ingress_rule" "lb-sg-allow-443" {
+
+  security_group_id = aws_security_group.lb-sg.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port = "80"
+  to_port = "80"
+}
+
 resource "aws_lb" "private-nlb" {
   name               = "private-nlb"
   internal           = true
@@ -282,13 +314,14 @@ resource "aws_lb" "private-nlb" {
     }
   enable_deletion_protection = false
   tags = var.tags
+  security_groups = [ aws_security_group.lb-sg.id ]
 }
 
 resource "aws_lb_target_group" "eks-target-group" {
   name        = "eks-nlb-target-group"
   port        = 80
   protocol    = "TCP"
-  target_type = "ip"
+  target_type = "instance"
   vpc_id      = aws_vpc.main.id
 }
 
@@ -319,6 +352,8 @@ resource "aws_lb" "public-nlb" {
     }
   enable_deletion_protection = false
   tags = var.tags
+  security_groups = [ aws_security_group.lb-sg.id ]
+
 }
 resource "aws_lb_target_group" "private-nlb-target-group" {
   name        = "private-nlb-target"
@@ -338,7 +373,6 @@ resource "aws_lb_listener" "public-nlb-listener" {
   load_balancer_arn = aws_lb.public-nlb.arn
   port              = "80"
   protocol          = "TCP"
-
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.private-nlb-target-group.arn
