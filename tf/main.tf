@@ -209,10 +209,6 @@ resource "aws_route_table" "isolated-rtb" {
     vpc_id = aws_vpc.main.id
 }
 
-resource "aws_route" "isolated-rtb-outbound" {
-    route_table_id = aws_route_table.isolated-rtb.id
-}
-
 
 resource "aws_route_table_association" "private-rtb-subnet-association-1a" {
     subnet_id = aws_subnet.private-1a.id
