@@ -1,3 +1,12 @@
+locals {
+  region         = "us-east-1"
+  name           = "network-firewall-ex-${basename(path.cwd)}"
+  account_id     = data.aws_caller_identity.current.account_id
+  private_nlb_ip = "10.0.32.32"
+  cluster_name   = "devops-exercise"
+  repo_url       = "ssh://git@github.com:Ahmad-RW/devops-exercise.git"
+}
+
 resource "aws_vpc" "main" {
   cidr_block = var.cidr_block
   tags       = merge(var.tags)
@@ -5,14 +14,6 @@ resource "aws_vpc" "main" {
 
 data "aws_caller_identity" "current" {}
 
-locals {
-  region         = "us-east-1"
-  name           = "network-firewall-ex-${basename(path.cwd)}"
-  account_id     = data.aws_caller_identity.current.account_id
-  private_nlb_ip = "10.0.32.32"
-  cluster_name   = "devops-exercise"
-  repo_url       = "https://github.com/Ahmad-RW/devops-exercise.git"
-}
 
 
 
@@ -97,8 +98,8 @@ resource "aws_network_acl" "public-subnets-nacl" {
     rule_no    = 100
     action     = "allow"
     cidr_block = "0.0.0.0/0"
-    from_port  = 443
-    to_port    = 443
+    from_port  = 0
+    to_port    = 0
   }
 
   ingress {
@@ -496,34 +497,34 @@ resource "aws_vpc_security_group_ingress_rule" "lb-sg-allow-443" {
 #   }
 # }
 
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 4.0"
+# module "vpc" {
+#   source  = "terraform-aws-modules/vpc/aws"
+#   version = "~> 4.0"
 
-  name = "test"
-  cidr = "10.123.0.0/16"
+#   name = "test"
+#   cidr = "10.123.0.0/16"
 
-  azs             = ["us-east-1a", "us-east-1b"]
-  private_subnets = ["10.123.1.0/24", "10.123.2.0/24"]
-  public_subnets  = ["10.123.3.0/24", "10.123.4.0/24"]
-  intra_subnets   = ["10.123.5.0/24", "10.123.6.0/24"]
+#   azs             = ["us-east-1a", "us-east-1b"]
+#   private_subnets = ["10.123.1.0/24", "10.123.2.0/24"]
+#   public_subnets  = ["10.123.3.0/24", "10.123.4.0/24"]
+#   intra_subnets   = ["10.123.5.0/24", "10.123.6.0/24"]
 
-  enable_nat_gateway = true
+#   enable_nat_gateway = true
 
-  # public_subnet_tags = {
-  #   "kubernetes.io/role/elb" = 1
-  # }
+#   # public_subnet_tags = {
+#   #   "kubernetes.io/role/elb" = 1
+#   # }
 
-  # private_subnet_tags = {
-  #   "kubernetes.io/role/internal-elb" = 1
-  # }
-}
+#   # private_subnet_tags = {
+#   #   "kubernetes.io/role/internal-elb" = 1
+#   # }
+# }
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "19.15.1"
 
-  cluster_name                   = locals.cluster_name
+  cluster_name                   = local.cluster_name
   cluster_endpoint_public_access = true
 
   cluster_addons = {
@@ -559,11 +560,71 @@ module "eks" {
       instance_types = ["t3.large"]
     }
   }
-
 }
 
-resource "flux_bootstrap_git" "this" {
-  depends_on = [module.eks]
-  embedded_manifests = true
-  path               = "gitops"
+
+resource "kubernetes_namespace" "flux_system" {
+  metadata {
+    name = "flux-system"
+  }
+}
+
+resource "helm_release" "flux2" {
+  repository = "https://fluxcd-community.github.io/helm-charts"
+  chart      = "flux2"
+  version    = "2.12.4"
+
+  name      = "flux2"
+  namespace = "flux-system"
+
+  depends_on = [kubernetes_namespace.flux_system]
+}
+
+resource "kubernetes_secret" "ssh_keypair" {
+  metadata {
+    name      = "ssh-keypair"
+    namespace = "flux-system"
+  }
+
+  type = "Opaque"
+
+  data = {
+    "identity.pub" = var.private_key_pem
+    "identity"     = var.public_key
+    "known_hosts"  = "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="
+  }
+
+  depends_on = [kubernetes_namespace.flux_system]
+}
+
+resource "helm_release" "flux2_sync" {
+  repository = "https://fluxcd-community.github.io/helm-charts"
+  chart      = "flux2-sync"
+  version    = "1.8.2"
+
+  # Note: Do not change the name or namespace of this resource. The below mimics the behaviour of "flux bootstrap".
+  name      = "flux-system"
+  namespace = "flux-system"
+
+  set {
+    name  = "gitRepository.spec.url"
+    value = local.repo_url
+  }
+
+  set {
+    name  = "gitRepository.spec.ref.branch"
+    value = "main"
+  }
+
+  set {
+    name  = "gitRepository.spec.secretRef.name"
+    value = kubernetes_secret.ssh_keypair.metadata[0].name
+  }
+
+  set {
+    name  = "gitRepository.spec.interval"
+    value = "1m"
+  }
+
+  depends_on = [helm_release.flux2]
 }

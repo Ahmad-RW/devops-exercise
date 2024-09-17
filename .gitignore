@@ -1,2 +1,5 @@
 init.sh
 !**/.terraform/*
+terraform.tfstate.backup
+secret.pub
+secret

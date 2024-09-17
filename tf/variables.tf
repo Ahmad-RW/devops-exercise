@@ -28,9 +28,17 @@ variable "azs" {
 }
 
 
-variable "github_token" {
-  description = "GitHub token"
+variable "private_key_pem" {
+  description = "github deploy private key"
   sensitive   = true
+  type        = string
+  default     = ""
+}
+
+
+variable "public_key" {
+  description = "github deploy private key"
+  sensitive   = false
   type        = string
   default     = ""
 }
