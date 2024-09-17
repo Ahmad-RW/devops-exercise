@@ -4,8 +4,9 @@ locals {
   account_id     = data.aws_caller_identity.current.account_id
   private_nlb_ip = "10.0.32.32"
   cluster_name   = "devops-exercise"
-  repo_url       = "ssh://git@github.com:Ahmad-RW/devops-exercise.git"
+  repo_url       = "ssh://git@github.com/Ahmad-RW/devops-exercise.git"
 }
+
 
 resource "aws_vpc" "main" {
   cidr_block = var.cidr_block
@@ -589,8 +590,8 @@ resource "kubernetes_secret" "ssh_keypair" {
   type = "Opaque"
 
   data = {
-    "identity.pub" = var.private_key_pem
-    "identity"     = var.public_key
+    "identity.pub" = var.public_key
+    "identity"     = var.private_key_pem
     "known_hosts"  = "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="
   }
 
