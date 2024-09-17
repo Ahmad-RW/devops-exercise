@@ -11,6 +11,7 @@ locals {
   account_id     = data.aws_caller_identity.current.account_id
   private_nlb_ip = "10.0.32.32"
   cluster_name   = "devops-exercise"
+  repo_url       = "https://github.com/Ahmad-RW/devops-exercise.git"
 }
 
 
@@ -561,3 +562,8 @@ module "eks" {
 
 }
 
+module "flux_bootstrap_git" {
+  depends_on = [module.eks]
+  source = "./fluxcd"
+
+}
