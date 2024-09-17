@@ -26,3 +26,11 @@ variable "azs" {
   type        = list(string)
   default     = ["use1-az6", "use1-az1", "use1-az2"]
 }
+
+
+variable "github_token" {
+  description = "GitHub token"
+  sensitive   = true
+  type        = string
+  default     = ""
+}

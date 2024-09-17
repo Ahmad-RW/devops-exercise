@@ -4,10 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.61.0"
     }
-  }
   flux = {
     source  = "fluxcd/flux"
     version = ">= 1.2"
+  }
   }
 
   required_version = ">= 1.2.0"

@@ -562,8 +562,8 @@ module "eks" {
 
 }
 
-module "flux_bootstrap_git" {
+resource "flux_bootstrap_git" "this" {
   depends_on = [module.eks]
-  source = "./fluxcd"
-
+  embedded_manifests = true
+  path               = "gitops"
 }
