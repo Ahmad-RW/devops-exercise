@@ -42,3 +42,10 @@ variable "public_key" {
   type        = string
   default     = ""
 }
+
+variable "network-vpce" {
+  description = "endpoint for aws network firewall endpoint to route traffic to"
+  sensitive = false
+  type = string
+  default = ""
+}

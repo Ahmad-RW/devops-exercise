@@ -2,9 +2,9 @@ locals {
   region         = "us-east-1"
   name           = "network-firewall-ex-${basename(path.cwd)}"
   account_id     = data.aws_caller_identity.current.account_id
-  private_nlb_ip = "10.0.32.32"
   cluster_name   = "devops-exercise"
   repo_url       = "ssh://git@github.com/Ahmad-RW/devops-exercise.git"
+  fw_name = "devOps-exercise-firewall"
 }
 
 
@@ -21,7 +21,8 @@ resource "aws_subnet" "public-1a" {
   cidr_block           = "10.0.16.0/20"
   availability_zone_id = element(var.azs, 0)
   tags = merge({
-    Name = "public-1a"
+    Name = "public-1a",
+    "kubernetes.io/role/elb" = "1"
   }, var.tags)
 
 }
@@ -160,11 +161,6 @@ resource "aws_route_table" "private-rtb" {
   vpc_id = aws_vpc.main.id
 }
 
-resource "aws_route" "private-rtb-outbound" {
-  route_table_id         = aws_route_table.private-rtb.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat-gw.id
-}
 
 resource "aws_route_table_association" "private-rtb-subnet-association-1a" {
   subnet_id      = aws_subnet.private-1a.id
@@ -435,4 +431,246 @@ resource "helm_release" "flux2_sync" {
   }
 
   depends_on = [helm_release.flux2]
+}
+
+
+### Network Firewall
+
+module "network_firewall" {
+  source  = "terraform-aws-modules/network-firewall/aws"
+
+  # Firewall
+  name        = local.fw_name
+  description = local.fw_name
+
+  # Only for example
+  delete_protection                 = false
+  firewall_policy_change_protection = false
+  subnet_change_protection          = false
+
+  vpc_id = aws_vpc.main.id
+  subnet_mapping = {
+    subnet-1 = {
+      subnet_id = aws_subnet.dmz-1a.id
+    }
+  }
+
+  # Logging configuration
+  create_logging_configuration = true
+  logging_configuration_destination_config = [
+    {
+      log_destination = {
+        logGroup = aws_cloudwatch_log_group.logs.name
+      }
+      log_destination_type = "CloudWatchLogs"
+      log_type             = "ALERT"
+    },
+    {
+      log_destination = {
+        bucketName = aws_s3_bucket.network_firewall_logs.id
+        prefix     = local.name
+      }
+      log_destination_type = "S3"
+      log_type             = "FLOW"
+    }
+  ]
+
+  # Policy
+  # policy_name        = local.fw_name
+  # policy_description = "Example network firewall policy"
+
+  # policy_stateful_rule_group_reference = {
+  #   one = { resource_arn = module.network_firewall_rule_group_stateful.arn }
+  # }
+
+  # policy_stateless_default_actions          = ["aws:pass"]
+  # policy_stateless_fragment_default_actions = ["aws:drop"]
+  # policy_stateless_rule_group_reference = {
+  #   one = {
+  #     priority     = 1
+  #     resource_arn = module.network_firewall_rule_group_stateless.arn
+  #   }
+  # }
+
+  tags = var.tags
+}
+
+
+# module "network_firewall_disabled" {
+#   source = "../.."
+
+#   create = false
+# }
+
+################################################################################
+# Network Firewall Rule Group
+################################################################################
+
+# module "network_firewall_rule_group_stateful" {
+#   source  = "terraform-aws-modules/network-firewall/aws//modules/rule-group"
+
+
+#   name        = "${local.fw_name}-stateful"
+#   description = "Stateful Inspection for denying access to a domain"
+#   type        = "STATEFUL"
+#   capacity    = 100
+
+#   rule_group = {
+#     rules_source = {
+#       rules_source_list = {
+#         generated_rules_type = "DENYLIST"
+#         target_types         = ["HTTP_HOST"]
+#         targets              = ["test.example.com"]
+#       }
+#     }
+#   }
+
+#   # Resource Policy
+#   create_resource_policy     = true
+#   attach_resource_policy     = true
+#   resource_policy_principals = ["arn:aws:iam::${local.account_id}:root"]
+
+#   tags = local.tags
+# }
+
+# module "network_firewall_rule_group_stateless" {
+#   source  = "terraform-aws-modules/network-firewall/aws//modules/rule-group"
+
+
+#   name        = "${local.fw_name}-stateless"
+#   description = "Stateless Inspection with a Custom Action"
+#   type        = "STATELESS"
+#   capacity    = 100
+
+#   rule_group = {
+#     rules_source = {
+#       stateless_rules_and_custom_actions = {
+#         custom_action = [{
+#           action_definition = {
+#             publish_metric_action = {
+#               dimension = [{
+#                 value = "2"
+#               }]
+#             }
+#           }
+#           action_name = "ExampleMetricsAction"
+#         }]
+#         stateless_rule = [{
+#           priority = 1
+#           rule_definition = {
+#             actions = ["aws:pass", "ExampleMetricsAction"]
+#             match_attributes = {
+#               source = [{
+#                 address_definition = "1.2.3.4/32"
+#               }]
+#               source_port = [{
+#                 from_port = 443
+#                 to_port   = 443
+#               }]
+#               destination = [{
+#                 address_definition = "124.1.1.5/32"
+#               }]
+#               destination_port = [{
+#                 from_port = 443
+#                 to_port   = 443
+#               }]
+#               protocols = [6]
+#               tcp_flag = [{
+#                 flags = ["SYN"]
+#                 masks = ["SYN", "ACK"]
+#               }]
+#             }
+#           }
+#         }]
+#       }
+#     }
+#   }
+
+#   # Resource Policy
+#   create_resource_policy     = true
+#   attach_resource_policy     = true
+#   resource_policy_principals = ["arn:aws:iam::${local.account_id}:root"]
+
+#   tags = var.tags
+# }
+
+
+resource "aws_cloudwatch_log_group" "logs" {
+  name              = "${local.fw_name}-logs"
+  retention_in_days = 1
+
+  tags = var.tags
+}
+
+resource "aws_s3_bucket" "network_firewall_logs" {
+  bucket        = "devopsexercisefwlogs"
+  force_destroy = true
+
+  tags = var.tags
+}
+
+# Logging configuration automatically adds this policy if not present
+resource "aws_s3_bucket_policy" "network_firewall_logs" {
+  bucket = aws_s3_bucket.network_firewall_logs.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "s3:PutObject"
+        Condition = {
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:logs:${local.region}:${local.account_id}:*"
+          }
+          StringEquals = {
+            "aws:SourceAccount" = local.account_id
+            "s3:x-amz-acl"      = "bucket-owner-full-control"
+          }
+        }
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Resource = "${aws_s3_bucket.network_firewall_logs.arn}/${local.fw_name}/AWSLogs/${local.account_id}/*"
+        Sid      = "AWSLogDeliveryWrite"
+      },
+      {
+        Action = "s3:GetBucketAcl"
+        Condition = {
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:logs:${local.region}:${local.account_id}:*"
+          }
+          StringEquals = {
+            "aws:SourceAccount" = local.account_id
+          }
+        }
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Resource = aws_s3_bucket.network_firewall_logs.arn
+        Sid      = "AWSLogDeliveryAclCheck"
+      },
+    ]
+  })
+}
+
+
+# Modify routing
+resource "aws_route" "go-through-fw-1a" {
+  route_table_id         = aws_route_table.public-rtb.id
+  destination_cidr_block = "10.0.32.0/20"
+  vpc_endpoint_id             = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
+}
+
+resource "aws_route" "go-through-fw-1b" {
+  route_table_id         = aws_route_table.public-rtb.id
+  destination_cidr_block = "10.0.80.0/20"
+  vpc_endpoint_id             = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
+}
+
+
+resource "aws_route" "private-rtb-outbound" {
+  route_table_id         = aws_route_table.private-rtb.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         =  tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
 }

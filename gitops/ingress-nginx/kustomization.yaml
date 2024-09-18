@@ -3,4 +3,4 @@ kind: Kustomization
 namespace: ingress-nginx
 resources:
   - namespace.yaml
-  - ingress-nginx.yaml
+  # - ingress-nginx.yaml
