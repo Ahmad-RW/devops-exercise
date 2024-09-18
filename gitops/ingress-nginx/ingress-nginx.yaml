@@ -1,0 +1,50 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: ingress-nginx
+  namespace: ingress-nginx
+spec:
+  interval: 1m
+  url: https://kubernetes.github.io/ingress-nginx
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: ingress-nginx
+  namespace: ingress-nginx
+spec:
+  interval: 1m
+  chart:
+    spec:
+      chart: ingress-nginx
+      version: '4.6.0'
+      sourceRef:
+        kind: HelmRepository
+        name: ingress-nginx
+        namespace: ingress-nginx
+      interval: 1m
+  values:
+    controller: 
+      # keda:
+      #   enabled: true
+      #   triggers:
+      #     - type: prometheus 
+      #       metadata: 
+      #       serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+      #       metricName: nginx_connections_active_keda 
+      #       query: | 
+      #         sum(avg_over_time(nginx_ingress_nginx_connections_active{app="main-nginx-ingress"}[1m])) 
+      #       threshold: "100" 
+      service:
+        enabled: true
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+          service.beta.kubernetes.io/aws-load-balancer-type: "external"
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+      watchIngressWithoutClass: true
+      metrics:
+        enabled: false
+        serviceMonitor:
+          enabled: false
