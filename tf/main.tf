@@ -672,5 +672,5 @@ resource "aws_route" "go-through-fw-1b" {
 resource "aws_route" "private-rtb-outbound" {
   route_table_id         = aws_route_table.private-rtb.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         =  tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
+  vpc_endpoint_id      =  tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
 }

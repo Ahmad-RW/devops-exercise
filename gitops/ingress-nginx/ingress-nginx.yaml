@@ -39,7 +39,7 @@ spec:
         enabled: true
         annotations:
           service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-          service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-07de59f9f64854073"
+          # service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-097576d431b9ba29a"
       watchIngressWithoutClass: true
       metrics:
         enabled: false
