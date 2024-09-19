@@ -354,7 +354,9 @@ module "eks" {
 
     attach_cluster_primary_security_group = true
   }
-
+  node_security_group_tags = {
+        "kubernetes.io/cluster/${local.cluster_name}" = null
+  }
   eks_managed_node_groups = {
     ng-1 = {
       min_size     = 1
