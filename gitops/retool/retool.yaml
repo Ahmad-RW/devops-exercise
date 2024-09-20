@@ -510,7 +510,7 @@ spec:
 
     retool-temporal-services-helm:
       # Enable to spin up a new Temporal Cluster alongside Retool
-      enabled: true
+      enabled: false
       server:
         # Defines image to be used for temporal server
         image:
