@@ -27,7 +27,7 @@ spec:
     # fullnameOverride:
 
     config:
-      licenseKey: ""
+      licenseKey: "SSOP_26f8887f-1757-4b7f-93e5-78000c318ea6"
       # licenseKeySecretName is the name of the secret where the Retool license key is stored (can be used instead of licenseKey)
       # licenseKeySecretName:
       # licenseKeySecretKey is the key in the k8s secret, default: license-key
