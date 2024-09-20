@@ -3,5 +3,5 @@ kind: Kustomization
 namespace: retool
 resources:
   - namespace.yaml
-  # - postgres.yml
-  # - retool.yaml
+  - postgres.yml
+  - retool.yaml
