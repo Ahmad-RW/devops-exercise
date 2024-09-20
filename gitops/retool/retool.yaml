@@ -266,8 +266,8 @@ spec:
         cpu: 4096m
         memory: 8192Mi
       requests:
-        cpu: 2048m
-        memory: 4096Mi
+        cpu: 500m
+        memory: 500Mi
 
     priorityClassName: ""
 
