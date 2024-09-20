@@ -3,4 +3,4 @@ kind: Kustomization
 namespace: retool
 resources:
   - namespace.yaml
-  - retool.yaml
+  # - retool.yaml
