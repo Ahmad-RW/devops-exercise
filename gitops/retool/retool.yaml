@@ -198,6 +198,8 @@ spec:
       # or self-host more permanently. Use enabled: false and set in config above to do so.
       enabled: true
       ssl_enabled: false
+      volumePermissions:
+        enabled: true
       auth:
         database: hammerhead_production
         username: postgres
@@ -214,7 +216,7 @@ spec:
       postgresqlDataDir: "/data/pgdata"
       primary:
         persistence:
-          enabled: true
+          enabled: false
           mountPath: "/data/"
 
     serviceAccount:
