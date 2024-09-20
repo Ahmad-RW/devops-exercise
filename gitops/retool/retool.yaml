@@ -58,14 +58,12 @@ spec:
       # IMPORTANT: Incompatible with postgresql subchart
       # Please disable the subchart in order to use a managed or external postgres instance.
       postgresql:
-        volumePermissions: 
-          enabled: true
         # Specify if postgresql subchart is disabled
-        # host:
-        # port:
-        # db:
-        # user:
-        # password:
+        host: postgres
+        port: 5432
+        db: ps_db
+        user: ps_user
+        password: SecurePassword
         # ssl_enabled: whether to enable SSL for connecting to the Retool Postgres database, equivalent to the POSTGRES_SSL_ENABLED environment variable. Place here instead of in the env block.
         # passwordSecretName is the name of the secret where the pg password is stored (can be used instead of password)
         # passwordSecretName:
@@ -196,7 +194,7 @@ spec:
       # We highly recommend you do NOT use this subchart as is to run Postgres in a container
       # for your production instance of Retool; it is a default. Please use a managed Postgres,
       # or self-host more permanently. Use enabled: false and set in config above to do so.
-      enabled: true
+      enabled: false
       ssl_enabled: false
       volumePermissions:
         enabled: true
