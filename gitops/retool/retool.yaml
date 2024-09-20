@@ -213,11 +213,11 @@ spec:
       image:
         repository: "postgres"
         tag: "13"
-      postgresqlDataDir: "/data/pgdata"
+      postgresqlDataDir: "/bitnami/postgresql/data"
       primary:
         persistence:
           enabled: false
-          mountPath: "/data/"
+          mountPath: "/bitnami/postgresql"
           size: 1Gi
 
     serviceAccount:
