@@ -162,7 +162,7 @@ spec:
       # portName: service-port
 
     ingress:
-      enabled: true
+      enabled: false
       # For k8s 1.18+
       # ingressClassName:
       labels: {}
