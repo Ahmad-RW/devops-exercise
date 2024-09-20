@@ -44,12 +44,12 @@ spec:
           # clientSecretSecretKey is the key in the k8s secret, default: google-client-secret
           # clientSecretSecretKey:
           domain:
-      encryptionKey:
+      encryptionKey: qCXG/a6GW4rrMtzSJw2Jzw==
       # encryptionKeySecretName is the name of the secret where the encryption key is stored (can be used instead of encryptionKey)
       # encryptionKeySecretName:
       # encryptionKeySecretKey is the key in the k8s secret, default: encryption-key
       # encryptionKeySecretKey:
-      jwtSecret:
+      jwtSecret: qCXG/a6GW4rrMtzSJw2Jzw==
       # jwtSecretSecretName is the name of the secret where the jwt secret is stored (can be used instead of jwtSecret)
       # jwtSecretSecretName:
       # jwtSecretSecretKey is the key in the k8s secret, default: jwt-secret
