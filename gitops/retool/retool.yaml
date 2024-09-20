@@ -58,7 +58,8 @@ spec:
       # IMPORTANT: Incompatible with postgresql subchart
       # Please disable the subchart in order to use a managed or external postgres instance.
       postgresql:
-        {}
+        volumePermissions: 
+          enabled: true
         # Specify if postgresql subchart is disabled
         # host:
         # port:
