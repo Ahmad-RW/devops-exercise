@@ -291,11 +291,11 @@ spec:
           admin: admin
         type: s3
         s3:
-          s3: http://supersecret:enterprise-logs@loki-minio:9000
+          s3: http://enterprise-logs:supersecret@loki-minio:9000
           endpoint: http://loki-minio:9000
           region: null
-          secretAccessKey: enterprise-logs
-          accessKeyId: supersecret
+          secretAccessKey: supersecret
+          accessKeyId: enterprise-logs
           signatureVersion: null
           s3ForcePathStyle: false
           insecure: true
