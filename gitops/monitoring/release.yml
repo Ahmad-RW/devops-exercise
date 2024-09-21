@@ -3062,7 +3062,7 @@ spec:
 
         ## Service type
         ##
-        type: LoadBalancer
+        type: ClusterIP
 
         ## Additional ports to open for Prometheus service
         ##
