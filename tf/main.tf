@@ -39,7 +39,7 @@ resource "aws_route_table" "public-rtb" {
 resource "aws_route" "outbound" {
   route_table_id         = aws_route_table.public-rtb.id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.igw.id
+  vpc_endpoint_id             = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
 }
 
 resource "aws_route_table_association" "public-rtb-subnet-association-1a" {
@@ -127,7 +127,8 @@ resource "aws_route_table" "dmz-rtb" {
 resource "aws_route" "dmz-rtb-outbound" {
   route_table_id         = aws_route_table.dmz-rtb.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat-gw.id
+  gateway_id = aws_internet_gateway.igw.id
+  
 }
 
 resource "aws_route_table_association" "dmz-rtb-subnet-association-1a" {
@@ -166,6 +167,13 @@ resource "aws_route_table_association" "private-rtb-subnet-association-1a" {
   subnet_id      = aws_subnet.private-1a.id
   route_table_id = aws_route_table.private-rtb.id
 }
+
+resource "aws_route" "private-rtb-outbound" {
+  route_table_id         = aws_route_table.private-rtb.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id      =  aws_nat_gateway.nat-gw.id
+}
+
 
 resource "aws_route_table_association" "private-rtb-subnet-association-1b" {
   subnet_id      = aws_subnet.private-1b.id
@@ -324,6 +332,137 @@ module "vpc" {
   # }
 }
 
+
+module "ebs_csi_controller_role" {
+  source                        = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
+  version                       = "5.11.1"
+  create_role                   = true
+  role_name                     = "${local.cluster_name}-ebs-csi-controller"
+  provider_url                  = replace(module.eks.cluster_oidc_issuer_url, "https://", "")
+  role_policy_arns              = [aws_iam_policy.ebs_csi_controller.arn]
+  oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+}
+
+resource "aws_iam_policy" "ebs_csi_controller" {
+  name_prefix = "ebs-csi-controller"
+  description = "EKS ebs-csi-controller policy for cluster ${local.cluster_name}"
+  policy = jsonencode({
+        Version = "2012-10-17"
+        Statement= [
+          {
+            Effect=  "Allow"
+            Action=  [
+              "ec2:CreateSnapshot",
+              "ec2:AttachVolume",
+              "ec2:DetachVolume",
+              "ec2:ModifyVolume",
+              "ec2:DescribeAvailabilityZones",
+              "ec2:DescribeInstances",
+              "ec2:DescribeSnapshots",
+              "ec2:DescribeTags",
+              "ec2:DescribeVolumes",
+              "ec2:DescribeVolumesModifications",
+            ]
+            Resource= "*"
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:CreateTags"]
+            Resource= ["arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*:*:snapshot/*"]
+            Condition= {
+              StringEquals= {
+                "ec2:CreateAction": ["CreateVolume", "CreateSnapshot"]
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:DeleteTags"]
+            Resource= ["arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*:*:snapshot/*"]
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:CreateVolume"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "aws:RequestTag/ebs.csi.aws.com/cluster": "true"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:CreateVolume"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "aws:RequestTag/CSIVolumeName": "*"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:CreateVolume"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "aws:RequestTag/kubernetes.io/cluster/*": "owned"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:DeleteVolume"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "ec2:ResourceTag/ebs.csi.aws.com/cluster": "true"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:DeleteVolume"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "ec2:ResourceTag/CSIVolumeName": "*"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:DeleteVolume"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "ec2:ResourceTag/kubernetes.io/cluster/*": "owned"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:DeleteSnapshot"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "ec2:ResourceTag/CSIVolumeSnapshotName": "*"
+              }
+            }
+          },
+          {
+            Effect= "Allow"
+            Action= ["ec2:DeleteSnapshot"]
+            Resource= "*"
+            Condition= {
+              StringLike= {
+                "ec2:ResourceTag/ebs.csi.aws.com/cluster": "true"
+              }
+            }
+          }
+        ]})
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "19.15.1"
@@ -340,6 +479,9 @@ module "eks" {
     }
     vpc-cni = {
       most_recent = true
+    }
+      aws-ebs-csi-driver = {
+      service_account_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.cluster_name}-ebs-csi-controller"
     }
   }
 
@@ -360,10 +502,11 @@ module "eks" {
   eks_managed_node_groups = {
     ng-1 = {
       min_size     = 1
-      max_size     = 2
-      desired_size = 2
+      max_size     = 5
+      desired_size = 5
 
       instance_types = ["t3.large"]
+      subnet_ids  = [aws_subnet.private-1a.id]
     }
   }
 }
@@ -657,22 +800,14 @@ resource "aws_s3_bucket_policy" "network_firewall_logs" {
 }
 
 
-# Modify routing
-resource "aws_route" "go-through-fw-1a" {
-  route_table_id         = aws_route_table.public-rtb.id
-  destination_cidr_block = "10.0.32.0/20"
-  vpc_endpoint_id             = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
-}
 
-resource "aws_route" "go-through-fw-1b" {
-  route_table_id         = aws_route_table.public-rtb.id
-  destination_cidr_block = "10.0.80.0/20"
-  vpc_endpoint_id             = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
+resource "aws_route_table" "igw-rtb" {
+  vpc_id = aws_vpc.main.id
 }
 
 
-resource "aws_route" "private-rtb-outbound" {
-  route_table_id         = aws_route_table.private-rtb.id
-  destination_cidr_block = "0.0.0.0/0"
-  vpc_endpoint_id      =  tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
+resource "aws_route_table_association" "b" {
+  gateway_id     = aws_internet_gateway.igw.id
+  route_table_id = aws_route_table.igw-rtb.id
 }
+
