@@ -14,11 +14,3 @@ configMapGenerator:
         grafana_dashboard: "1"
         app.kubernetes.io/part-of: flux
         app.kubernetes.io/component: monitoring
-  - name: nginx-ingress-dashboard
-    files:
-      - nginx-ingress.json
-    options:
-      labels:
-        grafana_dashboard: "1"
-        app.kubernetes.io/part-of: flux
-        app.kubernetes.io/component: monitoring
