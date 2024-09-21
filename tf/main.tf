@@ -15,6 +15,23 @@ resource "aws_vpc" "main" {
 
 data "aws_caller_identity" "current" {}
 
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  tags   = merge(var.tags)
+}
+
+resource "aws_route_table" "igw-rtb" {
+  vpc_id = aws_vpc.main.id
+}
+
+
+resource "aws_route_table_association" "b" {
+  gateway_id     = aws_internet_gateway.igw.id
+  route_table_id = aws_route_table.igw-rtb.id
+}
+
+
 ## Public subnet
 resource "aws_subnet" "public-1a" {
   vpc_id               = aws_vpc.main.id
@@ -27,15 +44,9 @@ resource "aws_subnet" "public-1a" {
 
 }
 
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-  tags   = merge(var.tags)
-}
-
 resource "aws_route_table" "public-rtb" {
   vpc_id = aws_vpc.main.id
 }
-
 resource "aws_route" "outbound" {
   route_table_id         = aws_route_table.public-rtb.id
   destination_cidr_block = "0.0.0.0/0"
@@ -90,16 +101,14 @@ resource "aws_network_acl" "public-subnets-nacl" {
 resource "aws_network_acl_association" "public-subnets-nacl-association-1a" {
   network_acl_id = aws_network_acl.public-subnets-nacl.id
   subnet_id      = aws_subnet.public-1a.id
-
 }
 
 
 
-## DMZ and Private Subnets 
+## NAT Gateway 
 
 resource "aws_eip" "nat_ip" {
   tags = merge(var.tags)
-
 }
 
 
@@ -108,6 +117,9 @@ resource "aws_nat_gateway" "nat-gw" {
   allocation_id = aws_eip.nat_ip.id
 }
 
+
+
+## DMZ  
 
 
 resource "aws_subnet" "dmz-1a" {
@@ -137,6 +149,7 @@ resource "aws_route_table_association" "dmz-rtb-subnet-association-1a" {
 }
 
 
+## Private Subnet
 
 resource "aws_subnet" "private-1a" {
   vpc_id               = aws_vpc.main.id
@@ -168,18 +181,17 @@ resource "aws_route_table_association" "private-rtb-subnet-association-1a" {
   route_table_id = aws_route_table.private-rtb.id
 }
 
-resource "aws_route" "private-rtb-outbound" {
-  route_table_id         = aws_route_table.private-rtb.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id      =  aws_nat_gateway.nat-gw.id
-}
-
 
 resource "aws_route_table_association" "private-rtb-subnet-association-1b" {
   subnet_id      = aws_subnet.private-1b.id
   route_table_id = aws_route_table.private-rtb.id
 }
 
+resource "aws_route" "private-rtb-outbound" {
+  route_table_id         = aws_route_table.private-rtb.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id      =  aws_nat_gateway.nat-gw.id
+}
 
 resource "aws_network_acl" "private-subnets-nacl" {
   vpc_id = aws_vpc.main.id
@@ -233,7 +245,7 @@ resource "aws_network_acl_association" "private-subnets-nacl-association-1b" {
 }
 
 
-# #isolated Subnets
+# Isolated Subnets
 
 resource "aws_subnet" "isolated-1a" {
   vpc_id               = aws_vpc.main.id
@@ -255,83 +267,7 @@ resource "aws_route_table_association" "isolated-rtb-subnet-association-1a" {
 }
 
 
-# ## Setup Internal LB
-
-
-resource "aws_security_group" "lb-sg" {
-  vpc_id = aws_vpc.main.id
-
-}
-
-resource "aws_vpc_security_group_egress_rule" "lb-sg-allow-all" {
-
-  security_group_id = aws_security_group.lb-sg.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "-1" # semantically equivalent to all ports
-}
-
-resource "aws_vpc_security_group_ingress_rule" "lb-sg-allow-80" {
-
-  security_group_id = aws_security_group.lb-sg.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = "80"
-  to_port           = "80"
-}
-
-
-
-resource "aws_vpc_security_group_ingress_rule" "lb-sg-allow-443" {
-
-  security_group_id = aws_security_group.lb-sg.id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "tcp"
-  from_port         = "443"
-  to_port           = "443"
-}
-
-
-####### TEST
-
-# locals {
-#   name   = "ascode-cluster"
-#   region = "us-east-1"
-
-#   vpc_cidr = "10.123.0.0/16"
-#   azs      = ["us-east-1a", "us-east-1b"]
-
-#   public_subnets  = ["10.123.1.0/24", "10.123.2.0/24"]
-#   private_subnets = ["10.123.3.0/24", "10.123.4.0/24"]
-#   intra_subnets   = ["10.123.5.0/24", "10.123.6.0/24"]
-
-#   tags = {
-#     Example = local.name
-#   }
-# }
-
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 4.0"
-
-  name = "test"
-  cidr = "10.123.0.0/16"
-
-  azs             = ["us-east-1a", "us-east-1b"]
-  private_subnets = ["10.123.1.0/24", "10.123.2.0/24"]
-  public_subnets  = ["10.123.3.0/24", "10.123.4.0/24"]
-  intra_subnets   = ["10.123.5.0/24", "10.123.6.0/24"]
-
-  enable_nat_gateway = true
-
-  # public_subnet_tags = {
-  #   "kubernetes.io/role/elb" = 1
-  # }
-
-  # private_subnet_tags = {
-  #   "kubernetes.io/role/internal-elb" = 1
-  # }
-}
-
+# EKS 
 
 module "ebs_csi_controller_role" {
   source                        = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
@@ -579,165 +515,7 @@ resource "helm_release" "flux2_sync" {
 }
 
 
-### Network Firewall
-
-module "network_firewall" {
-  source  = "terraform-aws-modules/network-firewall/aws"
-
-  # Firewall
-  name        = local.fw_name
-  description = local.fw_name
-
-  # Only for example
-  delete_protection                 = false
-  firewall_policy_change_protection = false
-  subnet_change_protection          = false
-
-  vpc_id = aws_vpc.main.id
-  subnet_mapping = {
-    subnet-1 = {
-      subnet_id = aws_subnet.dmz-1a.id
-    }
-  }
-
-  # Logging configuration
-  create_logging_configuration = true
-  logging_configuration_destination_config = [
-    {
-      log_destination = {
-        logGroup = aws_cloudwatch_log_group.logs.name
-      }
-      log_destination_type = "CloudWatchLogs"
-      log_type             = "ALERT"
-    },
-    {
-      log_destination = {
-        bucketName = aws_s3_bucket.network_firewall_logs.id
-        prefix     = local.name
-      }
-      log_destination_type = "S3"
-      log_type             = "FLOW"
-    }
-  ]
-
-  # Policy
-  # policy_name        = local.fw_name
-  # policy_description = "Example network firewall policy"
-
-  # policy_stateful_rule_group_reference = {
-  #   one = { resource_arn = module.network_firewall_rule_group_stateful.arn }
-  # }
-
-  # policy_stateless_default_actions          = ["aws:pass"]
-  # policy_stateless_fragment_default_actions = ["aws:drop"]
-  # policy_stateless_rule_group_reference = {
-  #   one = {
-  #     priority     = 1
-  #     resource_arn = module.network_firewall_rule_group_stateless.arn
-  #   }
-  # }
-
-  tags = var.tags
-}
-
-
-# module "network_firewall_disabled" {
-#   source = "../.."
-
-#   create = false
-# }
-
-################################################################################
-# Network Firewall Rule Group
-################################################################################
-
-# module "network_firewall_rule_group_stateful" {
-#   source  = "terraform-aws-modules/network-firewall/aws//modules/rule-group"
-
-
-#   name        = "${local.fw_name}-stateful"
-#   description = "Stateful Inspection for denying access to a domain"
-#   type        = "STATEFUL"
-#   capacity    = 100
-
-#   rule_group = {
-#     rules_source = {
-#       rules_source_list = {
-#         generated_rules_type = "DENYLIST"
-#         target_types         = ["HTTP_HOST"]
-#         targets              = ["test.example.com"]
-#       }
-#     }
-#   }
-
-#   # Resource Policy
-#   create_resource_policy     = true
-#   attach_resource_policy     = true
-#   resource_policy_principals = ["arn:aws:iam::${local.account_id}:root"]
-
-#   tags = local.tags
-# }
-
-# module "network_firewall_rule_group_stateless" {
-#   source  = "terraform-aws-modules/network-firewall/aws//modules/rule-group"
-
-
-#   name        = "${local.fw_name}-stateless"
-#   description = "Stateless Inspection with a Custom Action"
-#   type        = "STATELESS"
-#   capacity    = 100
-
-#   rule_group = {
-#     rules_source = {
-#       stateless_rules_and_custom_actions = {
-#         custom_action = [{
-#           action_definition = {
-#             publish_metric_action = {
-#               dimension = [{
-#                 value = "2"
-#               }]
-#             }
-#           }
-#           action_name = "ExampleMetricsAction"
-#         }]
-#         stateless_rule = [{
-#           priority = 1
-#           rule_definition = {
-#             actions = ["aws:pass", "ExampleMetricsAction"]
-#             match_attributes = {
-#               source = [{
-#                 address_definition = "1.2.3.4/32"
-#               }]
-#               source_port = [{
-#                 from_port = 443
-#                 to_port   = 443
-#               }]
-#               destination = [{
-#                 address_definition = "124.1.1.5/32"
-#               }]
-#               destination_port = [{
-#                 from_port = 443
-#                 to_port   = 443
-#               }]
-#               protocols = [6]
-#               tcp_flag = [{
-#                 flags = ["SYN"]
-#                 masks = ["SYN", "ACK"]
-#               }]
-#             }
-#           }
-#         }]
-#       }
-#     }
-#   }
-
-#   # Resource Policy
-#   create_resource_policy     = true
-#   attach_resource_policy     = true
-#   resource_policy_principals = ["arn:aws:iam::${local.account_id}:root"]
-
-#   tags = var.tags
-# }
+# Network Firewall - Amazon Network Firewall
 
 
 resource "aws_cloudwatch_log_group" "logs" {
@@ -799,15 +577,61 @@ resource "aws_s3_bucket_policy" "network_firewall_logs" {
   })
 }
 
+module "network_firewall" {
+  source  = "terraform-aws-modules/network-firewall/aws"
 
+  # Firewall
+  name        = local.fw_name
+  description = local.fw_name
 
-resource "aws_route_table" "igw-rtb" {
+  # Only for example
+  delete_protection                 = false
+  firewall_policy_change_protection = false
+  subnet_change_protection          = false
+
   vpc_id = aws_vpc.main.id
+  subnet_mapping = {
+    subnet-1 = {
+      subnet_id = aws_subnet.dmz-1a.id
+    }
+  }
+
+  # Logging configuration
+  create_logging_configuration = true
+  logging_configuration_destination_config = [
+    {
+      log_destination = {
+        logGroup = aws_cloudwatch_log_group.logs.name
+      }
+      log_destination_type = "CloudWatchLogs"
+      log_type             = "ALERT"
+    },
+    {
+      log_destination = {
+        bucketName = aws_s3_bucket.network_firewall_logs.id
+        prefix     = local.name
+      }
+      log_destination_type = "S3"
+      log_type             = "FLOW"
+    }
+  ]
+
+  # Policy
+  # policy_name        = local.fw_name
+  # policy_description = "Example network firewall policy"
+
+  # policy_stateful_rule_group_reference = {
+  #   one = { resource_arn = module.network_firewall_rule_group_stateful.arn }
+  # }
+
+  # policy_stateless_default_actions          = ["aws:pass"]
+  # policy_stateless_fragment_default_actions = ["aws:drop"]
+  # policy_stateless_rule_group_reference = {
+  #   one = {
+  #     priority     = 1
+  #     resource_arn = module.network_firewall_rule_group_stateless.arn
+  #   }
+  # }
+
+  tags = var.tags
 }
-
-
-resource "aws_route_table_association" "b" {
-  gateway_id     = aws_internet_gateway.igw.id
-  route_table_id = aws_route_table.igw-rtb.id
-}
-
