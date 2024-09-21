@@ -1,10 +1,10 @@
 locals {
-  region         = "us-east-1"
-  name           = "network-firewall-ex-${basename(path.cwd)}"
-  account_id     = data.aws_caller_identity.current.account_id
-  cluster_name   = "devops-exercise"
-  repo_url       = "ssh://git@github.com/Ahmad-RW/devops-exercise.git"
-  fw_name = "devOps-exercise-firewall"
+  region       = "us-east-1"
+  name         = "network-firewall-ex-${basename(path.cwd)}"
+  account_id   = data.aws_caller_identity.current.account_id
+  cluster_name = "devops-exercise"
+  repo_url     = "ssh://git@github.com/Ahmad-RW/devops-exercise.git"
+  fw_name      = "devOps-exercise-firewall"
 }
 
 
@@ -15,6 +15,7 @@ resource "aws_vpc" "main" {
 
 data "aws_caller_identity" "current" {}
 
+## Internet Gateway 
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
@@ -31,6 +32,18 @@ resource "aws_route_table_association" "b" {
   route_table_id = aws_route_table.igw-rtb.id
 }
 
+## NAT Gateway 
+
+resource "aws_eip" "nat_ip" {
+  tags = merge(var.tags)
+}
+
+
+resource "aws_nat_gateway" "nat-gw" {
+  subnet_id     = aws_subnet.public-1a.id
+  allocation_id = aws_eip.nat_ip.id
+}
+
 
 ## Public subnet
 resource "aws_subnet" "public-1a" {
@@ -38,7 +51,7 @@ resource "aws_subnet" "public-1a" {
   cidr_block           = "10.0.16.0/20"
   availability_zone_id = element(var.azs, 0)
   tags = merge({
-    Name = "public-1a",
+    Name                     = "public-1a",
     "kubernetes.io/role/elb" = "1"
   }, var.tags)
 
@@ -50,7 +63,7 @@ resource "aws_route_table" "public-rtb" {
 resource "aws_route" "outbound" {
   route_table_id         = aws_route_table.public-rtb.id
   destination_cidr_block = "0.0.0.0/0"
-  vpc_endpoint_id             = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
+  vpc_endpoint_id        = tolist(element(module.network_firewall.status, 1).sync_states)[0].attachment[0].endpoint_id
 }
 
 resource "aws_route_table_association" "public-rtb-subnet-association-1a" {
@@ -105,20 +118,6 @@ resource "aws_network_acl_association" "public-subnets-nacl-association-1a" {
 
 
 
-## NAT Gateway 
-
-resource "aws_eip" "nat_ip" {
-  tags = merge(var.tags)
-}
-
-
-resource "aws_nat_gateway" "nat-gw" {
-  subnet_id     = aws_subnet.public-1a.id
-  allocation_id = aws_eip.nat_ip.id
-}
-
-
-
 ## DMZ  
 
 
@@ -139,8 +138,8 @@ resource "aws_route_table" "dmz-rtb" {
 resource "aws_route" "dmz-rtb-outbound" {
   route_table_id         = aws_route_table.dmz-rtb.id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id = aws_internet_gateway.igw.id
-  
+  gateway_id             = aws_internet_gateway.igw.id
+
 }
 
 resource "aws_route_table_association" "dmz-rtb-subnet-association-1a" {
@@ -190,7 +189,7 @@ resource "aws_route_table_association" "private-rtb-subnet-association-1b" {
 resource "aws_route" "private-rtb-outbound" {
   route_table_id         = aws_route_table.private-rtb.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id      =  aws_nat_gateway.nat-gw.id
+  nat_gateway_id         = aws_nat_gateway.nat-gw.id
 }
 
 resource "aws_network_acl" "private-subnets-nacl" {
@@ -245,7 +244,7 @@ resource "aws_network_acl_association" "private-subnets-nacl-association-1b" {
 }
 
 
-# Isolated Subnets
+## Isolated Subnets
 
 resource "aws_subnet" "isolated-1a" {
   vpc_id               = aws_vpc.main.id
@@ -267,7 +266,7 @@ resource "aws_route_table_association" "isolated-rtb-subnet-association-1a" {
 }
 
 
-# EKS 
+## EKS 
 
 module "ebs_csi_controller_role" {
   source                        = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
@@ -283,120 +282,120 @@ resource "aws_iam_policy" "ebs_csi_controller" {
   name_prefix = "ebs-csi-controller"
   description = "EKS ebs-csi-controller policy for cluster ${local.cluster_name}"
   policy = jsonencode({
-        Version = "2012-10-17"
-        Statement= [
-          {
-            Effect=  "Allow"
-            Action=  [
-              "ec2:CreateSnapshot",
-              "ec2:AttachVolume",
-              "ec2:DetachVolume",
-              "ec2:ModifyVolume",
-              "ec2:DescribeAvailabilityZones",
-              "ec2:DescribeInstances",
-              "ec2:DescribeSnapshots",
-              "ec2:DescribeTags",
-              "ec2:DescribeVolumes",
-              "ec2:DescribeVolumesModifications",
-            ]
-            Resource= "*"
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:CreateTags"]
-            Resource= ["arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*:*:snapshot/*"]
-            Condition= {
-              StringEquals= {
-                "ec2:CreateAction": ["CreateVolume", "CreateSnapshot"]
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:DeleteTags"]
-            Resource= ["arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*:*:snapshot/*"]
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:CreateVolume"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "aws:RequestTag/ebs.csi.aws.com/cluster": "true"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:CreateVolume"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "aws:RequestTag/CSIVolumeName": "*"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:CreateVolume"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "aws:RequestTag/kubernetes.io/cluster/*": "owned"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:DeleteVolume"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "ec2:ResourceTag/ebs.csi.aws.com/cluster": "true"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:DeleteVolume"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "ec2:ResourceTag/CSIVolumeName": "*"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:DeleteVolume"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "ec2:ResourceTag/kubernetes.io/cluster/*": "owned"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:DeleteSnapshot"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "ec2:ResourceTag/CSIVolumeSnapshotName": "*"
-              }
-            }
-          },
-          {
-            Effect= "Allow"
-            Action= ["ec2:DeleteSnapshot"]
-            Resource= "*"
-            Condition= {
-              StringLike= {
-                "ec2:ResourceTag/ebs.csi.aws.com/cluster": "true"
-              }
-            }
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateSnapshot",
+          "ec2:AttachVolume",
+          "ec2:DetachVolume",
+          "ec2:ModifyVolume",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeInstances",
+          "ec2:DescribeSnapshots",
+          "ec2:DescribeTags",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeVolumesModifications",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:CreateTags"]
+        Resource = ["arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*:*:snapshot/*"]
+        Condition = {
+          StringEquals = {
+            "ec2:CreateAction" : ["CreateVolume", "CreateSnapshot"]
           }
-        ]})
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DeleteTags"]
+        Resource = ["arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*:*:snapshot/*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:CreateVolume"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "aws:RequestTag/ebs.csi.aws.com/cluster" : "true"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:CreateVolume"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "aws:RequestTag/CSIVolumeName" : "*"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:CreateVolume"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "aws:RequestTag/kubernetes.io/cluster/*" : "owned"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DeleteVolume"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "ec2:ResourceTag/ebs.csi.aws.com/cluster" : "true"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DeleteVolume"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "ec2:ResourceTag/CSIVolumeName" : "*"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DeleteVolume"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "ec2:ResourceTag/kubernetes.io/cluster/*" : "owned"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DeleteSnapshot"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "ec2:ResourceTag/CSIVolumeSnapshotName" : "*"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DeleteSnapshot"]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "ec2:ResourceTag/ebs.csi.aws.com/cluster" : "true"
+          }
+        }
+      }
+  ] })
 }
 
 module "eks" {
@@ -405,7 +404,6 @@ module "eks" {
 
   cluster_name                   = local.cluster_name
   cluster_endpoint_public_access = true
-  # cluster_endpoint_private_access = true
   cluster_addons = {
     coredns = {
       most_recent = true
@@ -416,7 +414,7 @@ module "eks" {
     vpc-cni = {
       most_recent = true
     }
-      aws-ebs-csi-driver = {
+    aws-ebs-csi-driver = {
       service_account_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.cluster_name}-ebs-csi-controller"
     }
   }
@@ -425,7 +423,7 @@ module "eks" {
   subnet_ids               = [aws_subnet.private-1a.id, aws_subnet.private-1b.id]
   control_plane_subnet_ids = [aws_subnet.private-1a.id, aws_subnet.private-1b.id]
 
-  # EKS Managed Node Group(s)
+  ### EKS Managed Node Group(s)
   eks_managed_node_group_defaults = {
     ami_type       = "AL2_x86_64"
     instance_types = ["m5.large"]
@@ -433,7 +431,7 @@ module "eks" {
     attach_cluster_primary_security_group = true
   }
   node_security_group_tags = {
-        "kubernetes.io/cluster/${local.cluster_name}" = null
+    "kubernetes.io/cluster/${local.cluster_name}" = null
   }
   eks_managed_node_groups = {
     ng-1 = {
@@ -442,7 +440,7 @@ module "eks" {
       desired_size = 5
 
       instance_types = ["t3.large"]
-      subnet_ids  = [aws_subnet.private-1a.id]
+      subnet_ids     = [aws_subnet.private-1a.id]
     }
   }
 }
@@ -515,7 +513,7 @@ resource "helm_release" "flux2_sync" {
 }
 
 
-# Network Firewall - Amazon Network Firewall
+## Network Firewall - Amazon Network Firewall
 
 
 resource "aws_cloudwatch_log_group" "logs" {
@@ -532,7 +530,7 @@ resource "aws_s3_bucket" "network_firewall_logs" {
   tags = var.tags
 }
 
-# Logging configuration automatically adds this policy if not present
+### Logging configuration automatically adds this policy if not present
 resource "aws_s3_bucket_policy" "network_firewall_logs" {
   bucket = aws_s3_bucket.network_firewall_logs.id
   policy = jsonencode({
@@ -578,7 +576,7 @@ resource "aws_s3_bucket_policy" "network_firewall_logs" {
 }
 
 module "network_firewall" {
-  source  = "terraform-aws-modules/network-firewall/aws"
+  source = "terraform-aws-modules/network-firewall/aws"
 
   # Firewall
   name        = local.fw_name
