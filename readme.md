@@ -3,6 +3,12 @@
 ## Introduction 
 This repository includes Terraform code to provision secure AWS cloud infrastructure using Amazon Network Firewall (ANF).
 
+### Notes on the Project
+
+1. This Terraform project is not intended for production or actual use in real-life scenarios. The project is not modularized or reusable.
+  
+2. The project does not take into consideration multiple availability zones (AZs). Ideally, for production workloads, we would provision our infrastructure across multiple AZs.
+
 ---
 
 ## Running the Project
@@ -64,8 +70,3 @@ The figure below illustrates a high-level design of the cloud infrastructure tha
 
 ![Alt text](./docs/Infra.png?raw=true "Infra Diagram")
 
-## Notes on the Project
-
-1. This Terraform project is not intended for production or actual use in real-life scenarios. The project is not modularized or reusable.
-  
-2. The project does not take into consideration multiple availability zones (AZs). Ideally, for production workloads, we would provision our infrastructure across multiple AZs.
