@@ -5,4 +5,4 @@ resources:
   - namespace.yml
   - repository.yaml
   - promtail-release.yaml
-  - release.yaml
+  # - release.yaml
