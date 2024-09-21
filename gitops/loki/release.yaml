@@ -291,14 +291,14 @@ spec:
           admin: admin
         type: s3
         s3:
-          s3: null
-          endpoint: null
+          s3: http://supersecret:enterprise-logs@loki-minio:9000
+          endpoint: http://loki-minio:9000
           region: null
-          secretAccessKey: null
-          accessKeyId: null
+          secretAccessKey: enterprise-logs
+          accessKeyId: supersecret
           signatureVersion: null
           s3ForcePathStyle: false
-          insecure: false
+          insecure: true
           http_config: {}
           # -- Check https://grafana.com/docs/loki/latest/configure/#s3_storage_config for more info on how to provide a backoff_config
           backoff_config: {}
