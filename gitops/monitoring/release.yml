@@ -1160,7 +1160,7 @@ spec:
       persistence:
         type: pvc
         enabled: true
-        storageClassName: default
+        storageClassName: gpu2
         accessModes: ["ReadWriteOnce"]
         size: 1Gi
 
