@@ -823,9 +823,7 @@ spec:
       # -- Environment variables to add to the write pods
       extraEnv: []
       # -- Environment variables from secrets or configmaps to add to the write pods
-      extraEnvFrom: 
-        - secretRef:
-            name: loki-backend-secrets
+      extraEnvFrom: []
       # -- Lifecycle for the write container
       lifecycle: {}
       # -- The default /flush_shutdown preStop hook is recommended as part of the ingester
@@ -1018,9 +1016,7 @@ spec:
       extraEnv: []
       extraContainers: []
       # -- Environment variables from secrets or configmaps to add to the read pods
-      extraEnvFrom: 
-        - secretRef:
-            name: loki-backend-secrets
+      extraEnvFrom: []
       # -- Lifecycle for the read container
       lifecycle: {}
       # -- Volume mounts to add to the read pods
@@ -1122,9 +1118,7 @@ spec:
       # -- Environment variables to add to the backend pods
       extraEnv: []
       # -- Environment variables from secrets or configmaps to add to the backend pods
-      extraEnvFrom: 
-        - secretRef:
-            name: loki-backend-secrets
+      extraEnvFrom: []
       # -- Init containers to add to the backend pods
       initContainers: []
       # -- Volume mounts to add to the backend pods
