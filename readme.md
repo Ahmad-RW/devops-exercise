@@ -69,12 +69,3 @@ The figure below illustrates a high-level design of the cloud infrastructure tha
 1. This Terraform project is not intended for production or actual use in real-life scenarios. The project is not modularized or reusable.
   
 2. The project does not take into consideration multiple availability zones (AZs). Ideally, for production workloads, we would provision our infrastructure across multiple AZs.
-
----
-
-### Additional Suggestions:
-- Consider adding a "Prerequisites" section to list any required tools or permissions.
-- Provide an "Example" section with sample configurations if applicable.
-- Include a "License" section if relevant.
-
-These changes can help enhance clarity and improve the overall readability of your README file.
