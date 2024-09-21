@@ -1122,7 +1122,7 @@ spec:
       ingress:
         ## If true, Grafana Ingress will be created
         ##
-        enabled: false
+        enabled: true
 
         ## IngressClassName for Grafana Ingress.
         ## Should be provided if Ingress is enable.
@@ -1145,7 +1145,7 @@ spec:
         # hosts:
         #   - grafana.domain.com
         hosts:
-            - grafana.local
+            - grafana.example.com
 
         ## Path for grafana ingress
         path: /
