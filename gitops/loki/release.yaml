@@ -1050,7 +1050,7 @@ spec:
         # -- Enable StatefulSetAutoDeletePVC feature
         enableStatefulSetAutoDeletePVC: true
         # -- Size of persistent disk
-        size: 10Gi
+        size: 1Gi
         # -- Storage class to be used.
         # If defined, storageClassName: <storageClass>.
         # If set to "-", storageClassName: "", which disables dynamic provisioning.
@@ -1159,7 +1159,7 @@ spec:
         # -- Enable StatefulSetAutoDeletePVC feature
         enableStatefulSetAutoDeletePVC: true
         # -- Size of persistent disk
-        size: 10Gi
+        size: 1Gi
         # -- Storage class to be used.
         # If defined, storageClassName: <storageClass>.
         # If set to "-", storageClassName: "", which disables dynamic provisioning.
@@ -1246,7 +1246,7 @@ spec:
         # -- Enable persistent disk
         enabled: true
         # -- Size of persistent disk
-        size: 10Gi
+        size: 1Gi
         # -- Storage class to be used.
         # If defined, storageClassName: <storageClass>.
         # If set to "-", storageClassName: "", which disables dynamic provisioning.
