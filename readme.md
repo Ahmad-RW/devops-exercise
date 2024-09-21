@@ -65,8 +65,6 @@ in the figure below it shows a high-level design of the cloud infra this terrafo
 
 
 
-![image](./docs/infra.png)
-
 ![Alt text](./docs/Infra.png?raw=true "Infra Diagram")
 
 
